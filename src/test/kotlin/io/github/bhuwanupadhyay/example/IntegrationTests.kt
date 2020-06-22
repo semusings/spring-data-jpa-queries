@@ -49,6 +49,7 @@ class IntegrationTests {
                 .jsonPath("$.id").isNotEmpty
                 .jsonPath("$.item").isEqualTo("item")
                 .jsonPath("$.quantity").isEqualTo(10)
+                .jsonPath("$.createdDate").isNotEmpty
     }
 
     @Test
@@ -65,6 +66,7 @@ class IntegrationTests {
                     .uri("/orders/$id").exchange().expectStatus().isOk.expectBody()
                     .jsonPath("$.item").isEqualTo("item")
                     .jsonPath("$.quantity").isEqualTo(10)
+                    .jsonPath("$.createdDate").isNotEmpty
         }
     }
 
@@ -90,6 +92,7 @@ class IntegrationTests {
                     .uri("/orders/$id").bodyValue(OrderRequest("item-changed", 20)).exchange().expectStatus().isOk.expectBody()
                     .jsonPath("$.item").isEqualTo("item-changed")
                     .jsonPath("$.quantity").isEqualTo(20)
+                    .jsonPath("$.createdDate").isNotEmpty
         }
     }
 

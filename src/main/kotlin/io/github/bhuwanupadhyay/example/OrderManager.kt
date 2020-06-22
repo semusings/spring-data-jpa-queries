@@ -15,6 +15,7 @@ import org.springframework.web.reactive.function.server.ServerResponse
 import org.springframework.web.reactive.function.server.ServerResponse.*
 import org.springframework.web.reactive.function.server.router
 import reactor.core.publisher.Mono
+import java.time.LocalDateTime
 import java.util.*
 import javax.persistence.Entity
 import javax.persistence.GeneratedValue
@@ -22,7 +23,11 @@ import javax.persistence.GenerationType
 import javax.persistence.Id
 
 @Entity
-data class OrderEntity(@Id @GeneratedValue(strategy = GenerationType.IDENTITY) var id: Long?, var item: String, var quantity: Int)
+data class OrderEntity(@Id @GeneratedValue(strategy = GenerationType.IDENTITY) var id: Long?,
+                       var item: String,
+                       var quantity: Int,
+                       var createdDate: LocalDateTime
+)
 
 interface OrderRepository : CrudRepository<OrderEntity, Long>
 
@@ -41,21 +46,20 @@ class OrderHandler(private val repository: OrderRepository) {
 
     fun save(req: ServerRequest): Mono<ServerResponse> {
         val payload = req.body(BodyExtractors.toMono(OrderRequest::class.java))
-        return payload.flatMap { status(HttpStatus.CREATED).body(BodyInserters.fromValue(repository.save(OrderEntity(null, it.item, it.quantity)))) }.switchIfEmpty(badRequest().build())
+        return payload.flatMap { status(HttpStatus.CREATED).body(BodyInserters.fromValue(repository.save(OrderEntity(null, it.item, it.quantity, LocalDateTime.now())))) }.switchIfEmpty(badRequest().build())
     }
 
     fun update(req: ServerRequest): Mono<ServerResponse> {
         val id = evalId(req)
-        val exists = Optional.ofNullable(repository.existsById(id)).filter { it }.map { Mono.just(it) }.orElseGet { Mono.empty() }
-        return exists
-                .flatMap {
-                    if (it) {
-                        val payload = req.body(BodyExtractors.toMono(OrderRequest::class.java))
-                        payload.flatMap { request -> ok().bodyValue(repository.save(OrderEntity(id, request.item, request.quantity))) }.switchIfEmpty(badRequest().build())
-                    } else {
-                        notFound().build()
-                    }
-                }.switchIfEmpty(notFound().build())
+        return repository.findById(id)
+                .map { entity ->
+                    val payload = req.body(BodyExtractors.toMono(OrderRequest::class.java))
+                    payload.map { request ->
+                        entity.item = request.item
+                        entity.quantity = request.quantity
+                        entity
+                    }.flatMap { ok().bodyValue(repository.save(it)) }.switchIfEmpty(badRequest().build())
+                }.orElseGet { notFound().build() }
     }
 
     private fun evalId(req: ServerRequest): Long {
