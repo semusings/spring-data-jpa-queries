@@ -1,1 +1,3 @@
-# spring-data-jpa-queries
+# Spring Data JPA Queries
+
+Blog: <>
