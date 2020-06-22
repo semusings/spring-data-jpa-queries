@@ -1,10 +1,14 @@
 package io.github.bhuwanupadhyay.example
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import io.github.bhuwanupadhyay.example.querybyexample.OrderEntityQuery
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.data.domain.Example
 import org.springframework.data.repository.CrudRepository
+import org.springframework.data.repository.query.QueryByExampleExecutor
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType.APPLICATION_JSON
 import org.springframework.stereotype.Component
@@ -24,21 +28,33 @@ import javax.persistence.Id
 
 @Entity
 data class OrderEntity(@Id @GeneratedValue(strategy = GenerationType.IDENTITY) var id: Long?,
-                       var item: String,
-                       var quantity: Int,
-                       var createdDate: LocalDateTime
+                       var item: String?,
+                       var quantity: Int?,
+                       var createdDate: LocalDateTime?
 )
 
-interface OrderRepository : CrudRepository<OrderEntity, Long>
+interface OrderRepository : CrudRepository<OrderEntity, Long>, QueryByExampleExecutor<OrderEntity>
 
 class DomainException(override val message: String, val ex: Throwable?) : RuntimeException(message, ex)
 
 data class OrderRequest(var item: String, var quantity: Int)
 
+data class OrderQueryRequest(var id: Long?, var item: String?, var quantity: Int?, var createdDate: String?)
+
 @Component
-class OrderHandler(private val repository: OrderRepository) {
+class OrderHandler(private val repository: OrderRepository,
+                    private val mapper: ObjectMapper) {
 
     fun findAll(req: ServerRequest) = ok().body(BodyInserters.fromValue(repository.findAll()))
+
+    fun findAllQueryByExample(req: ServerRequest): Mono<ServerResponse> {
+        val queryJson = read(mapper, req.queryParam("queryJson"), OrderQueryRequest::class.java)
+        return queryJson.map {
+            val entityQuery = OrderEntityQuery(it)
+            val example = Example.of(entityQuery.example, entityQuery.matcher)
+            ok().bodyValue(repository.findAll(example))
+        }.orElseGet { badRequest().build() }
+    }
 
     fun findOne(req: ServerRequest): Mono<ServerResponse> {
         return repository.findById(evalId(req)).map { ok().bodyValue(it) }.orElseGet { notFound().build() }
@@ -71,6 +87,10 @@ class OrderHandler(private val repository: OrderRepository) {
     }
 }
 
+private fun <T> read(mapper: ObjectMapper, param: Optional<String>, java: Class<T>): Optional<T> {
+    return param.map { mapper.readValue(it, java) }
+}
+
 @Configuration
 class OrderRoutes(private val handler: OrderHandler) {
 
@@ -83,6 +103,7 @@ class OrderRoutes(private val handler: OrderHandler) {
             GET("/orders", handler::findAll)
             GET("/orders/{id}", handler::findOne)
             PUT("/orders/{id}", handler::update)
+            GET("/query-by-example", handler::findAllQueryByExample)
         }
     }.filter { request, next ->
         try {

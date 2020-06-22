@@ -1,5 +1,6 @@
 package io.github.bhuwanupadhyay.example
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.MethodOrderer.Alphanumeric
@@ -10,12 +11,13 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.web.server.LocalServerPort
 import org.springframework.data.repository.CrudRepository
-import org.springframework.data.repository.reactive.ReactiveCrudRepository
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.junit.jupiter.SpringExtension
 import org.springframework.test.web.reactive.server.WebTestClient
 import org.springframework.test.web.reactive.server.WebTestClient.BodyContentSpec
 import reactor.core.publisher.Mono
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import java.util.function.Consumer
 
 @ExtendWith(SpringExtension::class)
@@ -122,6 +124,18 @@ class IntegrationTests {
         client
                 .get()
                 .uri("/orders").exchange().expectStatus().isOk.expectBody()
+                .jsonPath("$.size()").isEqualTo(2)
+    }
+
+    @Test
+    fun `return 200 if order list successfully with query by example`() {
+        `return 201 if order created successfully`()
+        `return 201 if order created successfully`()
+        val today = DateTimeFormatter.ISO_LOCAL_DATE.format(LocalDate.now())
+        val queryJson = ObjectMapper().writeValueAsString(OrderQueryRequest(null, null, null, today))
+        client
+                .get()
+                .uri("/query-by-example?queryJson={queryJson}", queryJson).exchange().expectStatus().isOk.expectBody()
                 .jsonPath("$.size()").isEqualTo(2)
     }
 
